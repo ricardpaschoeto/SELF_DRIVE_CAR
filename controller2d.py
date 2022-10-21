@@ -114,6 +114,8 @@ class Controller2D(object):
             throttle_output = 0.5 * self.vars.v_previous
         """
         self.vars.create_var('v_previous', 0.0)
+        self.vars.create_var('x_previous', 0.0)
+        self.vars.create_var('y_previous', 0.0)
 
         # Skip the first frame to store previous values properly
         if self._start_control_loop:
@@ -163,6 +165,7 @@ class Controller2D(object):
             # Change these outputs with the longitudinal controller. Note that
             # brake_output is optional and is not required to pass the
             # assignment, as the car will naturally slow down over time.
+            
             throttle_output = 0
             brake_output    = 0
 
