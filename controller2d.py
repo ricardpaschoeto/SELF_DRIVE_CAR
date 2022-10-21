@@ -116,6 +116,7 @@ class Controller2D(object):
         self.vars.create_var('v_previous', 0.0)
         self.vars.create_var('x_previous', 0.0)
         self.vars.create_var('y_previous', 0.0)
+        self.vars.create_var('yaw_previous', 0.0)
 
         # Skip the first frame to store previous values properly
         if self._start_control_loop:
@@ -201,3 +202,6 @@ class Controller2D(object):
             in the next iteration)
         """
         self.vars.v_previous = v  # Store forward speed to be used in next step
+        self.vars.x_previous = x
+        self.vars.y_previous = y
+        self.vars.yaw_previous = yaw
