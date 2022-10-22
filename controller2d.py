@@ -117,6 +117,7 @@ class Controller2D(object):
         self.vars.create_var('x_previous', 0.0)
         self.vars.create_var('y_previous', 0.0)
         self.vars.create_var('yaw_previous', 0.0)
+        self.vars.create_var('t_previous', 0)
 
         # Skip the first frame to store previous values properly
         if self._start_control_loop:
@@ -166,9 +167,22 @@ class Controller2D(object):
             # Change these outputs with the longitudinal controller. Note that
             # brake_output is optional and is not required to pass the
             # assignment, as the car will naturally slow down over time.
-            
-            throttle_output = 0
-            brake_output    = 0
+            Kp = 0.
+            Ki = 0.
+            Kd = 0.
+            x_des, y_des = waypoints[:][:][waypoints.index(v_desired)]
+            acc_des = Kp * (v_desired - v) + Ki * (np.sqrt(x_des**2 - y_des**2) - np.sqrt(x**2 - y**2)) + Kd * ((v_desired - v)) / t
+
+            v_desired_new = acc_des * t
+            ratio = v_desired_new / v_desired
+
+            if ratio <= 1.0:
+                throttle_output = 1 - ratio
+            else:
+                brake_output = np.abs(1 - ratio)
+
+            waypoints[waypoints.index(x_des)][waypoints.index(y_des)] = v_desired_new
+            self.update_waypoints(waypoints)
 
             ######################################################
             ######################################################
@@ -205,3 +219,4 @@ class Controller2D(object):
         self.vars.x_previous = x
         self.vars.y_previous = y
         self.vars.yaw_previous = yaw
+        self.vars.t_previous = t
