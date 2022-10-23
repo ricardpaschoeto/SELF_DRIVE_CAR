@@ -4,6 +4,7 @@
 2D Controller Class to be used for the CARLA waypoint follower demo.
 """
 
+import math
 import cutils
 import numpy as np
 
@@ -113,11 +114,12 @@ class Controller2D(object):
             Example: Accessing the value from 'v_previous' to be used
             throttle_output = 0.5 * self.vars.v_previous
         """
-        self.vars.create_var('v_previous', 0.0)
-        self.vars.create_var('x_previous', 0.0)
-        self.vars.create_var('y_previous', 0.0)
-        self.vars.create_var('yaw_previous', 0.0)
-        self.vars.create_var('t_previous', 0)
+        self.vars.create_var('v_previous', 0.)
+        self.vars.create_var('v_desired_previous', 0.)
+        self.vars.create_var('x_previous', 0.)
+        self.vars.create_var('y_previous', 0.)
+        self.vars.create_var('yaw_previous', 0.)
+        self.vars.create_var('t_previous', 0.)
 
         # Skip the first frame to store previous values properly
         if self._start_control_loop:
@@ -167,22 +169,29 @@ class Controller2D(object):
             # Change these outputs with the longitudinal controller. Note that
             # brake_output is optional and is not required to pass the
             # assignment, as the car will naturally slow down over time.
-            Kp = 0.
-            Ki = 0.
+            Kp = 10.
+            Ki = 5.
             Kd = 0.
-            x_des, y_des = waypoints[:][:][waypoints.index(v_desired)]
-            acc_des = Kp * (v_desired - v) + Ki * (np.sqrt(x_des**2 - y_des**2) - np.sqrt(x**2 - y**2)) + Kd * ((v_desired - v)) / t
+
+            x_des, y_des, v_desired = waypoints[self._current_frame][0], waypoints[self._current_frame][1], waypoints[self._current_frame][2]
+            acc_des = Kp * (v_desired - v) + Ki * (np.sqrt(x_des**2 - y_des**2) - np.sqrt(x**2 - y**2)) + Kd * ((v_desired - v) - (self.vars.v_desired_previous - self.vars.v_previous)) / (t - self.vars.t_previous)
 
             v_desired_new = acc_des * t
             ratio = v_desired_new / v_desired
 
-            if ratio <= 1.0:
-                throttle_output = 1 - ratio
-            else:
-                brake_output = np.abs(1 - ratio)
+            #if ratio <= 1.0:
+            throttle_output = throttle_output + throttle_output*(1 - ratio)
+            #else:
+            brake_output = 0
 
-            waypoints[waypoints.index(x_des)][waypoints.index(y_des)] = v_desired_new
+            x_new = v_desired_new * np.cos(yaw) * t
+            y_new = v_desired_new * np.sin(yaw) * t
+
+            waypoints[self._current_frame][0] = x_new
+            waypoints[self._current_frame][1] = y_new
+            waypoints[self._current_frame][2] = v_desired_new
             self.update_waypoints(waypoints)
+            
 
             ######################################################
             ######################################################
@@ -195,8 +204,13 @@ class Controller2D(object):
                 example, can treat self.vars.v_previous like a "global variable".
             """
             
-            # Change the steer output with the lateral controller. 
-            steer_output    = 0
+            # Change the steer output with the lateral controller.
+            ld = 1.5
+            x_diff = ld
+            y_diff = y_des - y
+            steer_output = math.atan2(y_diff, x_diff) - yaw
+            self._current_frame = self._current_frame + 1
+            self.update_values(x_new, y_new, steer_output, v_desired_new, t, self._current_frame)
 
             ######################################################
             # SET CONTROLS OUTPUT
@@ -216,6 +230,7 @@ class Controller2D(object):
             in the next iteration)
         """
         self.vars.v_previous = v  # Store forward speed to be used in next step
+        self.vars.v_desired_previous = v_desired
         self.vars.x_previous = x
         self.vars.y_previous = y
         self.vars.yaw_previous = yaw
