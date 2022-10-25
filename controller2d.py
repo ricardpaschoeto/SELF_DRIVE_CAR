@@ -169,23 +169,25 @@ class Controller2D(object):
             # Change these outputs with the longitudinal controller. Note that
             # brake_output is optional and is not required to pass the
             # assignment, as the car will naturally slow down over time.
-            Kp = 10.
-            Ki = 5.
+            Kp = 1.
+            Ki = 1.
             Kd = 0.
 
             x_des, y_des, v_desired = waypoints[self._current_frame][0], waypoints[self._current_frame][1], waypoints[self._current_frame][2]
-            acc_des = Kp * (v_desired - v) + Ki * (np.sqrt(x_des**2 - y_des**2) - np.sqrt(x**2 - y**2)) + Kd * ((v_desired - v) - (self.vars.v_desired_previous - self.vars.v_previous)) / (t - self.vars.t_previous)
+            acc_des = Kp * (v_desired - v) + Ki * ((x_des - x) + (y_des - y)) + Kd * ((v_desired - v) - (self.vars.v_desired_previous - self.vars.v_previous)) / (t - self.vars.t_previous)
 
             v_desired_new = acc_des * t
-            ratio = v_desired_new / v_desired
+            ratio = v_desired / v_desired_new
 
-            #if ratio <= 1.0:
-            throttle_output = throttle_output + throttle_output*(1 - ratio)
-            #else:
+            if ratio <= 1.0:
+                throttle_output = ratio * self.vars.v_previous
+            else:
+                throttle_output = 0
+
             brake_output = 0
 
-            x_new = v_desired_new * np.cos(yaw) * t
-            y_new = v_desired_new * np.sin(yaw) * t
+            x_new = v_desired_new * np.sin(yaw) * t
+            y_new = v_desired_new * np.cos(yaw) * t
 
             waypoints[self._current_frame][0] = x_new
             waypoints[self._current_frame][1] = y_new
@@ -205,11 +207,11 @@ class Controller2D(object):
             """
             
             # Change the steer output with the lateral controller.
-            ld = 1.5
-            x_diff = ld
-            y_diff = y_des - y
+            L = 3.0
+            x_diff = x_des - x_new
+            y_diff = 2 * L * np.sin(yaw)
             steer_output = math.atan2(y_diff, x_diff) - yaw
-            self._current_frame = self._current_frame + 1
+            np.clip(steer_output, -1.22, 1.22)
             self.update_values(x_new, y_new, steer_output, v_desired_new, t, self._current_frame)
 
             ######################################################
