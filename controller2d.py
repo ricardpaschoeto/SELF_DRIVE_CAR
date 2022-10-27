@@ -120,6 +120,7 @@ class Controller2D(object):
         self.vars.create_var('y_previous', 0.)
         self.vars.create_var('yaw_previous', 0.)
         self.vars.create_var('t_previous', 0.)
+        self.vars.create_var('throttle_output_previous', 0.)
 
         # Skip the first frame to store previous values properly
         if self._start_control_loop:
@@ -169,25 +170,25 @@ class Controller2D(object):
             # Change these outputs with the longitudinal controller. Note that
             # brake_output is optional and is not required to pass the
             # assignment, as the car will naturally slow down over time.
-            Kp = 1.
+            Kp = 5.
             Ki = 1.
             Kd = 0.
 
             x_des, y_des, v_desired = waypoints[self._current_frame][0], waypoints[self._current_frame][1], waypoints[self._current_frame][2]
-            acc_des = Kp * (v_desired - v) + Ki * ((x_des - x) + (y_des - y)) + Kd * ((v_desired - v) - (self.vars.v_desired_previous - self.vars.v_previous)) / (t - self.vars.t_previous)
+            acc_des = Kp * (v_desired - v) + Ki * (v_desired - v) * (t - self.vars.t_previous) + Kd * ((v_desired - v) - (self.vars.v_desired_previous - self.vars.v_previous)) / (t - self.vars.t_previous)
 
             v_desired_new = acc_des * t
-            ratio = v_desired / v_desired_new
+            ratio = v / v_desired_new
 
-            if ratio <= 1.0:
-                throttle_output = ratio * self.vars.v_previous
-            else:
-                throttle_output = 0
+            if ratio == 0.:
+                throttle_output = self.vars.throttle_output_previous + 1.
+            elif v > 0. and v < v_desired_new:
+                throttle_output = self.vars.throttle_output_previous + ratio
 
             brake_output = 0
 
-            x_new = v_desired_new * np.sin(yaw) * t
-            y_new = v_desired_new * np.cos(yaw) * t
+            x_new = v_desired_new * np.sin(yaw) * (t - self.vars.t_previous)
+            y_new = v_desired_new * np.cos(yaw) * (t - self.vars.t_previous)
 
             waypoints[self._current_frame][0] = x_new
             waypoints[self._current_frame][1] = y_new
@@ -207,12 +208,13 @@ class Controller2D(object):
             """
             
             # Change the steer output with the lateral controller.
-            L = 3.0
-            x_diff = x_des - x_new
-            y_diff = 2 * L * np.sin(yaw)
-            steer_output = math.atan2(y_diff, x_diff) - yaw
+            L = 1.5
+            ld = np.sqrt((x_des - x)**2 + (y_des - y)**2)
+            x_diff = ld / (2 * np.sin(self.vars.yaw_previous + np.pi/2.))
+            y_diff = L
+            steer_output = math.atan2(y_diff, x_diff)
+            print(steer_output)
             np.clip(steer_output, -1.22, 1.22)
-            self.update_values(x_new, y_new, steer_output, v_desired_new, t, self._current_frame)
 
             ######################################################
             # SET CONTROLS OUTPUT
@@ -231,9 +233,12 @@ class Controller2D(object):
             current x, y, and yaw values here using persistent variables for use
             in the next iteration)
         """
+        t = t + 0.01
+        self.update_values(x_new, y_new, steer_output, v_desired_new, t, self._current_frame)
         self.vars.v_previous = v  # Store forward speed to be used in next step
         self.vars.v_desired_previous = v_desired
         self.vars.x_previous = x
         self.vars.y_previous = y
         self.vars.yaw_previous = yaw
         self.vars.t_previous = t
+        self.vars.throttle_output_previous = throttle_output
